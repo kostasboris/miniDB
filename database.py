@@ -289,7 +289,8 @@ class Database:
             self._add_to_insert_stack(table_name, deleted)
         self.save()
 
-    def select(self, table_name, columns, condition=None, order_by=None, asc=False,\
+	# adjusted for group_by and distinct TASK 3.1
+    def select(self, table_name, columns, distinct=False, condition=None, group_by=None, order_by=None, asc=False,\
                top_k=None, save_as=None, return_object=False):
         '''
         Selects and outputs a table's data where condtion is met.
@@ -317,9 +318,11 @@ class Database:
         if self._has_index(table_name) and condition_column==self.tables[table_name].column_names[self.tables[table_name].pk_idx]:
             index_name = self.select('meta_indexes', '*', f'table_name=={table_name}', return_object=True).index_name[0]
             bt = self._load_idx(index_name)
-            table = self.tables[table_name]._select_where_with_btree(columns, bt, condition, order_by, asc, top_k)
+            #changed for group by and distinct TASK 3.1
+            table = self.tables[table_name]._select_where_with_btree(columns, bt, condition, distinct, group_by, order_by, asc, top_k)
         else:
-            table = self.tables[table_name]._select_where(columns, condition, order_by, asc, top_k)
+			#changed for group by and distinct TASK 3.1
+            table = self.tables[table_name]._select_where(columns, condition, distinct, group_by, order_by, asc, top_k)
         self.unlock_table(table_name)
         if save_as is not None:
             table._name = save_as
@@ -329,6 +332,10 @@ class Database:
                 return table
             else:
                 table.show()
+
+	# function to print the primary key column values TASK 3.1
+    def show_pk(self, table_name):
+        pk = self.tables[table_name].showpk()
 
     def show_table(self, table_name, no_of_rows=None):
         '''
