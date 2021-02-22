@@ -58,11 +58,20 @@ class Table:
             self.data = [] # data is a list of lists, a list of rows that is.
 
             # if primary key is set, keep its index as an attribute
+            
+            # PRIMARY KEY MULTI COLUMN SUPPORT AND NEW STORING METHOD TASK 3.1 #
             if primary_key is not None:
-                self.pk_idx = self.column_names.index(primary_key)
+                if not isinstance(primary_key, list):
+                    #self.pk_idx = self.column_names.index(primary_key)
+                    self.pk_idx = primary_key
+                else:
+                    self.pk_idx = []
+                    for i in primary_key:
+                        #self.pk_idx.append(self.column_names.index(i))
+                        self.pk_idx.append(i)
+            # END OF PRIMARY KEY MULTI COLUMN SUPPORT AND NEW STORING METHOD TASK 3.1
             else:
                 self.pk_idx = None
-
 
             self._update()
 
@@ -171,7 +180,7 @@ class Table:
         return indexes_to_del
 
 
-    def _select_where(self, return_columns, condition=None, order_by=None, asc=False, top_k=None):
+    def _select_where(self, return_columns, condition=None, distinct=False, group_by=None, order_by=None, asc=False, top_k=None):
         '''
         Select and return a table containing specified columns and rows where condition is met
         '''
@@ -183,7 +192,7 @@ class Table:
             raise Exception(f'Return columns should be "*" or of type list. (the second parameter is return_columns not condition)')
         else:
             return_cols = [self.column_names.index(colname) for colname in return_columns]
-
+        
         # if condition is None, return all rows
         # if not, return the rows with values where condition is met for value
         if condition is not None:
@@ -193,17 +202,42 @@ class Table:
         else:
             rows = [i for i in range(len(self.columns[0]))]
 
-        # top k rows
-        rows = rows[:top_k]
-        # copy the old dict, but only the rows and columns of data with index in rows/columns (the indexes that we want returned)
-        dict = {(key):([[self.data[i][j] for j in return_cols] for i in rows] if key=="data" else value) for key,value in self.__dict__.items()}
-
+        # SELECT DISTINCT TASK 3.1 #
+        
+        drows = [[self.data[i][j] for j in return_cols] for i in rows]
+        #print(drows)
+        ndrows = []
+        for elem in drows:
+            if elem not in ndrows:
+                ndrows.append(elem)
+           
+        drows = ndrows
+        
+        # END SELECT DISTINCT TASK 3.1 #        
+        
+        # check if select is distinct TASK 3.1
+        if distinct is False:
+            # top k rows
+            rows = rows[:top_k]
+            # copy the old dict, but only the rows and columns of data with index in rows/columns (the indexes that we want returned)
+            dict = {(key):([[self.data[i][j] for j in return_cols] for i in rows] if key=="data" else value) for key,value in self.__dict__.items()}
+        else:
+            # top k rows for distinct
+            rows = drows[:top_k]
+            # DISTINCT ROWS TASK 3.1
+            dict = {(key):(rows if key=="data" else value) for key,value in self.__dict__.items()}
+        
         # we need to set the new column names/types and no of columns, since we might
         # only return some columns
         dict['column_names'] = [self.column_names[i] for i in return_cols]
         dict['column_types']   = [self.column_types[i] for i in return_cols]
         dict['_no_of_columns'] = len(return_cols)
 
+        
+        # CALL GROUP BY FUNCTION TASK 3.1
+        if group_by is not None:
+            dict = Table(load=dict).group_by(group_by)
+        
         # order by the return table if specified
         if order_by is None:
             return Table(load=dict)
@@ -211,7 +245,7 @@ class Table:
             return Table(load=dict).order_by(order_by, asc)
 
 
-    def _select_where_with_btree(self, return_columns, bt, condition, order_by=None, asc=False, top_k=None):
+    def _select_where_with_btree(self, return_columns, bt, condition, distinct=False, group_by=None, order_by=None, asc=False, top_k=None):
 
         # if * return all columns, else find the column indexes for the columns specified
         if return_columns == '*':
@@ -248,21 +282,91 @@ class Table:
         print('### Index result ###')
         print(rows)
 
-        # same as simple select from now on
-        rows = rows[:top_k]
-        # TODO: this needs to be dumbed down
-        dict = {(key):([[self.data[i][j] for j in return_cols] for i in rows] if key=="data" else value) for key,value in self.__dict__.items()}
+        # SELECT DISTINCT TASK 3.1 #
+        
+        drows = [[self.data[i][j] for j in return_cols] for i in rows]
+        #print(drows)
+        ndrows = []
+        for elem in drows:
+            if elem not in ndrows:
+                ndrows.append(elem)
+           
+        drows = ndrows
+        
+        # END SELECT DISTINCT TASK 3.1 #        
+        
+        # check if select is distinct TASK 3.1
+        if distinct is False:
+            # same as simple select from now on
+            rows = rows[:top_k]
+            # TODO: this needs to be dumbed down
+            dict = {(key):([[self.data[i][j] for j in return_cols] for i in rows] if key=="data" else value) for key,value in self.__dict__.items()}
+        else:
+            # top k rows for distinct
+            rows = drows[:top_k]
+            # DISTINCT ROWS TASK 3.1
+            dict = {(key):(rows if key=="data" else value) for key,value in self.__dict__.items()}
+        
 
         dict['column_names'] = [self.column_names[i] for i in return_cols]
         dict['column_types']   = [self.column_types[i] for i in return_cols]
         dict['_no_of_columns'] = len(return_cols)
-
+        
+        # CALL GROUP BY FUCTION  TASK 3.1
+        if group_by is not None:
+            dict = Table(load=dict).group_by(group_by)
+		
+        
         if order_by is None:
             return Table(load=dict)
         else:
             return Table(load=dict).order_by(order_by, asc)
 
+    # function to print the primary key column for a specified table TASK 3.1
+    def showpk(self):
+        if self.pk_idx is not None:
+            rows = [i for i in range(len(self.columns[0]))]
+            if not isinstance(self.pk_idx, list):
+                tt = self.column_names.index(self.pk_idx)
+                pp = [self.data[i][tt] for i in rows]
+            else:
+                tt = []
+                for i in self.pk_idx:
+                    tt.append(self.column_names.index(i))
+                pp = [[self.data[i][j] for j in tt] for i in rows]
+            
+            
+            print(pp)
+    
+    # GROUP BY function for TASK 3.1
+    def group_by(self, column_name, asc=True):        
+        column = self.columns[self.column_names.index(column_name)]
 
+        # sort data
+        idx = sorted(range(len(column)), key=lambda k: column[k], reverse=not asc)
+        a = [self.data[i] for i in idx]
+
+        # index of column we use to group by 
+        idx_col = self.column_names.index(column_name)
+        b = []
+
+        # check for and remove any duplicates
+        for i in range(len(a)-1):
+            if i != len(a)-2:
+                if a[i][idx_col] != a[i+1][idx_col]:
+                    b.append(a[i])
+            elif i == len(a)-2:
+                if a[i][idx_col] != a[i+1][idx_col]:
+                    b.append(a[i])
+                    b.append(a[i+1])
+                else:
+                    b.append(a[i+1])
+        
+        # return table but arange data using idx list (sorted indexes)
+        dict = {(key):(b if key=="data" else value) for key, value in self.__dict__.items()}
+        return dict
+		
+         
     def order_by(self, column_name, asc=False):
         '''
         Order by based on column
@@ -273,6 +377,7 @@ class Table:
         # return table but arange data using idx list (sorted indexes)
         dict = {(key):([self.data[i] for i in idx] if key=="data" else value) for key, value in self.__dict__.items()}
         return Table(load=dict)
+    
 
 
     def _sort(self, column_name, asc=False):
@@ -341,9 +446,21 @@ class Table:
 
         # headers -> "column name (column type)"
         headers = [f'{col} ({tp.__name__})' for col, tp in zip(self.column_names, self.column_types)]
+        
+        # TASK 3.1 updated the addition of pk to each appropriate column for multi column keys
         if self.pk_idx is not None:
-            # table has a primary key, add PK next to the appropriate column
-            headers[self.pk_idx] = headers[self.pk_idx]+' #PK#'
+            if not isinstance(self.pk_idx, list):
+                # table has a primary key, add PK next to the appropriate column
+                for j in range(len(headers)):
+                    if (headers[j].split('(')[0]).strip() == self.pk_idx:
+                        headers[j] = headers[j] + ' #PK#'
+            else:
+                for j in range(len(headers)):
+                    for i in range(len(self.pk_idx)):
+                        if (headers[j].split('(')[0]).strip() == self.pk_idx[i]:
+                            headers[j] = headers[j] + ' #PK#'
+        # TASK 3.1 END
+                                    
         # detect the rows that are no tfull of nones (these rows have been deleted)
         # if we dont skip these rows, the returning table has empty rows at the deleted positions
         non_none_rows = [row for row in self.data if any(row)]
